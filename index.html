@@ -657,7 +657,7 @@
                 const sw = 100, sh = (sigImg.height / sigImg.width) * sw;
                 
                 // Signature position - confirmed by user
-                page.drawImage(sigImg, { x: 440, y: 375, width: sw, height: sh });
+                page.drawImage(sigImg, { x: 470, y: 375, width: sw, height: sh });
                 
                 const modified = await pdfDoc.save();
                 const ep = `/drives/${driveInfo.driveId}/items/${currentPdfFile.id}/content`;
