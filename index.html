@@ -265,8 +265,7 @@
         const msalConfig = {
             auth: {
                 clientId: "aec5d54c-af0f-4312-85bf-59eadb83b008",
-                // "common" allows any Microsoft account (personal + any org)
-                authority: "https://login.microsoftonline.com/common",
+                authority: "https://login.microsoftonline.com/095a44f7-c3d6-450a-9455-0b4de9a28c1c",
                 redirectUri: window.location.origin + window.location.pathname,
             },
             cache: { cacheLocation: "sessionStorage", storeAuthStateInCookie: false }
@@ -275,14 +274,14 @@
         const loginRequest = { scopes: ["Files.ReadWrite.All", "Sites.ReadWrite.All"] };
         
         // =============================================
-        // NOTION PROXY CONFIG
-        // Your Vercel-deployed proxy handles Notion API calls
-        // Deploy the /api/notion.js function to Vercel and set
-        // NOTION_TOKEN as an environment variable there.
+        // NOTION CONFIG
+        // Replace NOTION_TOKEN with your Notion Internal Integration Token
+        // Get one at: https://www.notion.so/my-integrations
+        // Then share the "Attendance Codes" database with your integration
         // =============================================
-        const NOTION_PROXY = "https://attendance-signer-smoky.vercel.app/api/notion";
-        // e.g. "https://attendance-proxy.vercel.app/api/notion"
+        const NOTION_TOKEN = "REPLACE_WITH_YOUR_NOTION_INTEGRATION_TOKEN";
         const NOTION_DATABASE_ID = "91c8e32342e242eba4b563a4f6f06aa9";
+        const NOTION_API = "https://api.notion.com/v1";
         
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
         
@@ -383,22 +382,24 @@
         function genCode() { return String(Math.floor(1000 + Math.random() * 9000)); }
         
         async function notionQuery(code) {
-            const r = await fetch(NOTION_PROXY, {
+            const r = await fetch(`${NOTION_API}/databases/${NOTION_DATABASE_ID}/query`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'query', database_id: NOTION_DATABASE_ID, code })
+                headers: { 'Authorization': `Bearer ${NOTION_TOKEN}`, 'Content-Type': 'application/json', 'Notion-Version': '2022-06-28' },
+                body: JSON.stringify({ filter: { and: [{ property: "Code", title: { equals: code } }, { property: "Status", select: { equals: "Active" } }] } })
             });
-            if (!r.ok) throw new Error(`Notion proxy: ${r.status}`);
+            if (!r.ok) throw new Error(`Notion: ${r.status}`);
             return r.json();
         }
         
         async function notionCreate(code, link, name) {
-            const r = await fetch(NOTION_PROXY, {
+            const props = { "Code": { title: [{ text: { content: code } }] }, "Folder Link": { url: link }, "Status": { select: { name: "Active" } } };
+            if (name) props["Class Name"] = { rich_text: [{ text: { content: name } }] };
+            const r = await fetch(`${NOTION_API}/pages`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'create', database_id: NOTION_DATABASE_ID, code, folder_link: link, class_name: name })
+                headers: { 'Authorization': `Bearer ${NOTION_TOKEN}`, 'Content-Type': 'application/json', 'Notion-Version': '2022-06-28' },
+                body: JSON.stringify({ parent: { database_id: NOTION_DATABASE_ID }, properties: props })
             });
-            if (!r.ok) throw new Error(`Notion proxy: ${r.status}`);
+            if (!r.ok) throw new Error(`Notion: ${r.status}`);
             return r.json();
         }
         
@@ -414,19 +415,20 @@
                 
                 let found = false;
                 
-                // Try Notion proxy
+                // Try Notion API
                 try {
                     const result = await notionQuery(code);
                     if (result.results?.length > 0) {
                         const entry = result.results[0];
-                        resolvedFolderLink = entry.folder_link;
-                        const className = entry.class_name || '';
+                        resolvedFolderLink = entry.properties["Folder Link"].url;
+                        const cn = entry.properties["Class Name"]?.rich_text;
+                        const className = cn?.length > 0 ? cn[0].plain_text : '';
                         showStatus(el.codeStatusContainer, `✓ ${className ? 'Class: ' + className : 'Class found!'}`, 'success');
                         el.participantSigninSection.classList.remove('hidden');
                         found = true;
                     }
                 } catch (e) {
-                    console.warn('Notion proxy failed, trying localStorage:', e);
+                    console.warn('Notion API failed, trying localStorage:', e);
                 }
                 
                 // Fallback: localStorage
@@ -473,7 +475,7 @@
                     while (ex.results?.length > 0 && attempts < 10) { code = genCode(); ex = await notionQuery(code); attempts++; }
                     await notionCreate(code, link, name);
                     notionOk = true;
-                } catch (e) { console.warn('Notion proxy save failed:', e); }
+                } catch (e) { console.warn('Notion save failed:', e); }
                 
                 // Always save to localStorage as backup
                 localStorage.setItem(`att_code_${code}`, JSON.stringify({ folderLink: link, className: name, created: new Date().toISOString() }));
