@@ -1028,17 +1028,12 @@
                 const { width, height } = firstPage.getSize();
                 
                 // Position signature in the "Candidate:" box
-                // User provided X:1554 Y:1070 from ShareX (pixels from top-left)
-                // PDF coordinates are in points from bottom-left
-                // A4 page: 595.44 x 841.68 points
-                // Using ~2.85x scale ratio
-                // X: 1554 / 2.85 ≈ 545 points from left
-                // Y: (imageHeight - 1070) / 2.85. Assuming ~2400px tall: (2400-1070) / 2.85 ≈ 467 from bottom
+                // Final coordinates confirmed by user
                 const signatureWidth = 100;
                 const signatureHeight = (signatureImage.height / signatureImage.width) * signatureWidth;
                 
-                const signatureX = 430;
-                const signatureY = 375;
+                const signatureX = 400;
+                const signatureY = 345;
                 
                 firstPage.drawImage(signatureImage, {
                     x: signatureX,
@@ -1053,6 +1048,9 @@
                 // Upload back to SharePoint/OneDrive
                 const uploadEndpoint = `/drives/${driveInfo.driveId}/items/${currentPdfFile.id}/content`;
                 
+                console.log('Uploading to:', uploadEndpoint);
+                console.log('PDF size:', modifiedPdfBytes.byteLength, 'bytes');
+                
                 const uploadResponse = await fetch(`https://graph.microsoft.com/v1.0${uploadEndpoint}`, {
                     method: 'PUT',
                     headers: {
@@ -1062,9 +1060,16 @@
                     body: new Uint8Array(modifiedPdfBytes)
                 });
                 
+                console.log('Upload response status:', uploadResponse.status);
+                
                 if (!uploadResponse.ok) {
-                    throw new Error('Failed to upload signed document');
+                    const errorText = await uploadResponse.text();
+                    console.error('Upload error:', errorText);
+                    throw new Error(`Failed to upload signed document: ${uploadResponse.status} - ${errorText}`);
                 }
+                
+                const uploadResult = await uploadResponse.json();
+                console.log('Upload successful:', uploadResult);
                 
                 showStatus(elements.modalStatusContainer, 'Signature saved successfully! ✓', 'success');
                 
