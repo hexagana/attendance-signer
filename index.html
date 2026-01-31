@@ -1,0 +1,1101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Attendance Signature Portal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <!-- MSAL.js for Microsoft Authentication -->
+    <script src="https://alcdn.msauth.net/browser/2.38.0/js/msal-browser.min.js"></script>
+    
+    <!-- PDF.js for rendering PDFs -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    
+    <!-- PDF-lib for modifying PDFs -->
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    
+    <!-- Signature Pad -->
+    <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
+    
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-card: #1a1a24;
+            --accent-primary: #6366f1;
+            --accent-secondary: #818cf8;
+            --accent-glow: rgba(99, 102, 241, 0.3);
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --border-color: #2d2d3a;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+        
+        /* Header */
+        .header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem 1.5rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        
+        .logo {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--accent-secondary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .logo-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+        }
+        
+        /* Main Container */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem 1.5rem;
+        }
+        
+        /* Sections */
+        .section {
+            margin-bottom: 2rem;
+        }
+        
+        .section-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        /* Setup Panel */
+        .setup-panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+        }
+        
+        .input-group {
+            margin-bottom: 1rem;
+        }
+        
+        .input-group label {
+            display: block;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+        
+        .input-group input {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.875rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        
+        .input-group input:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+        
+        .input-group input::placeholder {
+            color: var(--text-muted);
+        }
+        
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.875rem 1.5rem;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 0.9375rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px var(--accent-glow);
+        }
+        
+        .btn-secondary {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+        
+        .btn-secondary:hover {
+            background: var(--bg-card);
+            border-color: var(--accent-primary);
+        }
+        
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #0d9668;
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .btn-group {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+        
+        /* Status Messages */
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            margin-top: 1rem;
+        }
+        
+        .status-info {
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            color: var(--accent-secondary);
+        }
+        
+        .status-success {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            color: var(--success);
+        }
+        
+        .status-error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: var(--error);
+        }
+        
+        .status-loading {
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            color: var(--warning);
+        }
+        
+        /* Participant Grid */
+        .participant-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1rem;
+        }
+        
+        .participant-card {
+            background: var(--bg-card);
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.25rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+        
+        .participant-card:hover {
+            border-color: var(--accent-primary);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+        
+        .participant-card:active {
+            transform: translateY(0);
+        }
+        
+        .participant-name {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            word-break: break-word;
+        }
+        
+        .participant-status {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+        }
+        
+        /* Modal Overlay */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 1000;
+            display: none;
+            overflow-y: auto;
+            padding: 1rem;
+        }
+        
+        .modal-overlay.active {
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+        }
+        
+        .modal-content {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            width: 100%;
+            max-width: 900px;
+            margin: 1rem auto;
+            overflow: hidden;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .modal-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+        }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0.25rem;
+            line-height: 1;
+        }
+        
+        .modal-close:hover {
+            color: var(--text-primary);
+        }
+        
+        .modal-body {
+            padding: 1.5rem;
+        }
+        
+        /* PDF Viewer */
+        .pdf-container {
+            background: var(--bg-card);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            overflow-x: auto;
+            display: flex;
+            justify-content: center;
+        }
+        
+        #pdf-canvas {
+            max-width: 100%;
+            height: auto;
+            border-radius: 4px;
+        }
+        
+        /* Signature Pad */
+        .signature-section {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 1.5rem;
+        }
+        
+        .signature-label {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .signature-pad-container {
+            background: white;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            position: relative;
+        }
+        
+        #signature-pad {
+            width: 100%;
+            height: 200px;
+            border-radius: 8px;
+            touch-action: none;
+        }
+        
+        .signature-hint {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+        
+        .signature-actions {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+        
+        .signature-actions .btn {
+            flex: 1;
+            min-width: 120px;
+        }
+        
+        /* Loading Spinner */
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid transparent;
+            border-top-color: currentColor;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Hidden */
+        .hidden {
+            display: none !important;
+        }
+        
+        /* Responsive */
+        @media (max-width: 640px) {
+            .header-content {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .participant-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .modal-content {
+                margin: 0.5rem;
+                border-radius: 12px;
+            }
+            
+            .modal-body {
+                padding: 1rem;
+            }
+            
+            #signature-pad {
+                height: 150px;
+            }
+        }
+        
+        /* User Info */
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+        
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            background: var(--accent-primary);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            color: white;
+            font-size: 0.875rem;
+        }
+        
+        /* Instructions */
+        .instructions {
+            background: rgba(99, 102, 241, 0.05);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+        
+        .instructions ol {
+            margin-left: 1.25rem;
+        }
+        
+        .instructions li {
+            margin-bottom: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <div class="logo-icon">✍️</div>
+                <span>Attendance Signature</span>
+            </div>
+            <div id="user-section" class="hidden">
+                <div class="user-info">
+                    <div class="user-avatar" id="user-avatar">U</div>
+                    <span id="user-name">User</span>
+                    <button class="btn btn-secondary" id="btn-signout" style="padding: 0.5rem 1rem; font-size: 0.8125rem;">Sign Out</button>
+                </div>
+            </div>
+        </div>
+    </header>
+    
+    <main class="container">
+        <!-- Setup Section -->
+        <section class="section" id="setup-section">
+            <h2 class="section-title">Setup</h2>
+            <div class="setup-panel">
+                <div class="instructions">
+                    <strong>How to use:</strong>
+                    <ol>
+                        <li>Paste the SharePoint/OneDrive folder link containing the attendance PDFs</li>
+                        <li>Click "Sign In with Microsoft" to authenticate</li>
+                        <li>Select your name from the list</li>
+                        <li>Sign using your finger or stylus</li>
+                        <li>Click "Save Signature" to save</li>
+                    </ol>
+                </div>
+                
+                <div class="input-group">
+                    <label for="folder-link">SharePoint/OneDrive Folder Link</label>
+                    <input type="text" id="folder-link" placeholder="https://yourcompany.sharepoint.com/:f:/s/..." />
+                </div>
+                
+                <div class="btn-group">
+                    <button class="btn btn-primary" id="btn-signin">
+                        <span>Sign In with Microsoft</span>
+                    </button>
+                    <button class="btn btn-secondary hidden" id="btn-load-files">
+                        <span>Load Participants</span>
+                    </button>
+                </div>
+                
+                <div id="status-container"></div>
+            </div>
+        </section>
+        
+        <!-- Participants Section -->
+        <section class="section hidden" id="participants-section">
+            <h2 class="section-title">Select Your Name</h2>
+            <div class="participant-grid" id="participant-grid">
+                <!-- Participant cards will be inserted here -->
+            </div>
+        </section>
+    </main>
+    
+    <!-- Signature Modal -->
+    <div class="modal-overlay" id="signature-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modal-participant-name">Participant Name</h3>
+                <button class="modal-close" id="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="pdf-container">
+                    <canvas id="pdf-canvas"></canvas>
+                </div>
+                
+                <div class="signature-section">
+                    <div class="signature-label">Draw Your Signature Below</div>
+                    <div class="signature-pad-container">
+                        <canvas id="signature-pad"></canvas>
+                    </div>
+                    <p class="signature-hint">Use your finger or stylus to sign. Your signature will appear in the "Candidate" box on the document.</p>
+                    
+                    <div class="signature-actions">
+                        <button class="btn btn-secondary" id="btn-clear-signature">
+                            Clear
+                        </button>
+                        <button class="btn btn-success" id="btn-save-signature">
+                            Save Signature
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="modal-status-container"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // ============================================
+        // CONFIGURATION
+        // ============================================
+        const msalConfig = {
+            auth: {
+                clientId: "aec5d54c-af0f-4312-85bf-59eadb83b008",
+                authority: "https://login.microsoftonline.com/095a44f7-c3d6-450a-9455-0b4de9a28c1c",
+                redirectUri: window.location.origin + window.location.pathname,
+            },
+            cache: {
+                cacheLocation: "sessionStorage",
+                storeAuthStateInCookie: false,
+            }
+        };
+        
+        const loginRequest = {
+            scopes: ["Files.ReadWrite.All", "Sites.ReadWrite.All"]
+        };
+        
+        // PDF.js worker
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        
+        // ============================================
+        // GLOBAL STATE
+        // ============================================
+        let msalInstance = null;
+        let accessToken = null;
+        let currentUser = null;
+        let signaturePad = null;
+        let currentPdfFile = null;
+        let currentPdfBytes = null;
+        let driveInfo = null;
+        
+        // ============================================
+        // DOM ELEMENTS
+        // ============================================
+        const elements = {
+            folderLink: document.getElementById('folder-link'),
+            btnSignin: document.getElementById('btn-signin'),
+            btnLoadFiles: document.getElementById('btn-load-files'),
+            btnSignout: document.getElementById('btn-signout'),
+            statusContainer: document.getElementById('status-container'),
+            userSection: document.getElementById('user-section'),
+            userName: document.getElementById('user-name'),
+            userAvatar: document.getElementById('user-avatar'),
+            participantsSection: document.getElementById('participants-section'),
+            participantGrid: document.getElementById('participant-grid'),
+            signatureModal: document.getElementById('signature-modal'),
+            modalClose: document.getElementById('modal-close'),
+            modalParticipantName: document.getElementById('modal-participant-name'),
+            pdfCanvas: document.getElementById('pdf-canvas'),
+            signaturePadCanvas: document.getElementById('signature-pad'),
+            btnClearSignature: document.getElementById('btn-clear-signature'),
+            btnSaveSignature: document.getElementById('btn-save-signature'),
+            modalStatusContainer: document.getElementById('modal-status-container'),
+        };
+        
+        // ============================================
+        // UTILITY FUNCTIONS
+        // ============================================
+        function showStatus(container, message, type = 'info') {
+            container.innerHTML = `
+                <div class="status status-${type}">
+                    ${type === 'loading' ? '<div class="spinner"></div>' : ''}
+                    <span>${message}</span>
+                </div>
+            `;
+        }
+        
+        function clearStatus(container) {
+            container.innerHTML = '';
+        }
+        
+        function extractSharePointInfo(url) {
+            // Handle SharePoint sharing links
+            // Format: https://tenant.sharepoint.com/:f:/s/SiteName/EncodedFolderId
+            // Or: https://tenant.sharepoint.com/:f:/r/sites/SiteName/Shared%20Documents/FolderPath
+            
+            try {
+                const urlObj = new URL(url);
+                const hostname = urlObj.hostname;
+                const tenant = hostname.split('.')[0];
+                
+                // Extract site and folder info from path
+                const pathParts = urlObj.pathname.split('/');
+                
+                let siteId = null;
+                let driveId = null;
+                let folderId = null;
+                
+                // Check for encoded sharing link format (/:f:/s/ or /:f:/r/)
+                if (url.includes('/:f:/')) {
+                    // This is a sharing link - we need to resolve it
+                    return {
+                        type: 'sharing-link',
+                        url: url,
+                        hostname: hostname,
+                        tenant: tenant
+                    };
+                }
+                
+                return {
+                    type: 'direct',
+                    hostname: hostname,
+                    tenant: tenant,
+                    pathParts: pathParts
+                };
+            } catch (e) {
+                console.error('Error parsing URL:', e);
+                return null;
+            }
+        }
+        
+        // ============================================
+        // MSAL AUTHENTICATION
+        // ============================================
+        async function initializeMsal() {
+            msalInstance = new msal.PublicClientApplication(msalConfig);
+            await msalInstance.initialize();
+            
+            // Handle redirect response
+            try {
+                const response = await msalInstance.handleRedirectPromise();
+                if (response) {
+                    accessToken = response.accessToken;
+                    currentUser = response.account;
+                    updateUIForSignedInUser();
+                }
+            } catch (error) {
+                console.error('Redirect handling error:', error);
+            }
+            
+            // Check for existing accounts
+            const accounts = msalInstance.getAllAccounts();
+            if (accounts.length > 0) {
+                currentUser = accounts[0];
+                await acquireTokenSilent();
+                updateUIForSignedInUser();
+            }
+        }
+        
+        async function signIn() {
+            try {
+                showStatus(elements.statusContainer, 'Signing in...', 'loading');
+                const response = await msalInstance.loginPopup(loginRequest);
+                accessToken = response.accessToken;
+                currentUser = response.account;
+                updateUIForSignedInUser();
+                showStatus(elements.statusContainer, 'Signed in successfully!', 'success');
+            } catch (error) {
+                console.error('Sign in error:', error);
+                showStatus(elements.statusContainer, 'Sign in failed: ' + error.message, 'error');
+            }
+        }
+        
+        async function signOut() {
+            try {
+                await msalInstance.logoutPopup();
+                accessToken = null;
+                currentUser = null;
+                updateUIForSignedOutUser();
+            } catch (error) {
+                console.error('Sign out error:', error);
+            }
+        }
+        
+        async function acquireTokenSilent() {
+            try {
+                const response = await msalInstance.acquireTokenSilent({
+                    ...loginRequest,
+                    account: currentUser
+                });
+                accessToken = response.accessToken;
+            } catch (error) {
+                console.error('Silent token acquisition failed:', error);
+                // Fall back to interactive
+                await signIn();
+            }
+        }
+        
+        function updateUIForSignedInUser() {
+            elements.userSection.classList.remove('hidden');
+            elements.userName.textContent = currentUser.name || currentUser.username;
+            elements.userAvatar.textContent = (currentUser.name || currentUser.username).charAt(0).toUpperCase();
+            elements.btnSignin.classList.add('hidden');
+            elements.btnLoadFiles.classList.remove('hidden');
+        }
+        
+        function updateUIForSignedOutUser() {
+            elements.userSection.classList.add('hidden');
+            elements.btnSignin.classList.remove('hidden');
+            elements.btnLoadFiles.classList.add('hidden');
+            elements.participantsSection.classList.add('hidden');
+            clearStatus(elements.statusContainer);
+        }
+        
+        // ============================================
+        // MICROSOFT GRAPH API CALLS
+        // ============================================
+        async function graphRequest(endpoint, options = {}) {
+            if (!accessToken) {
+                await acquireTokenSilent();
+            }
+            
+            const response = await fetch(`https://graph.microsoft.com/v1.0${endpoint}`, {
+                ...options,
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json',
+                    ...options.headers
+                }
+            });
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Graph API error: ${response.status} - ${errorText}`);
+            }
+            
+            // Handle binary responses
+            if (options.responseType === 'arraybuffer') {
+                return await response.arrayBuffer();
+            }
+            
+            // Handle empty responses
+            const text = await response.text();
+            return text ? JSON.parse(text) : null;
+        }
+        
+        async function resolveSharingLink(sharingUrl) {
+            // Encode the sharing URL to base64url format
+            const base64url = btoa(sharingUrl)
+                .replace(/\+/g, '-')
+                .replace(/\//g, '_')
+                .replace(/=+$/, '');
+            
+            const encodedUrl = `u!${base64url}`;
+            
+            // Get the shared item info
+            const sharedItem = await graphRequest(`/shares/${encodedUrl}/driveItem`);
+            return sharedItem;
+        }
+        
+        async function loadFilesFromFolder() {
+            const folderUrl = elements.folderLink.value.trim();
+            
+            if (!folderUrl) {
+                showStatus(elements.statusContainer, 'Please enter a SharePoint/OneDrive folder link', 'error');
+                return;
+            }
+            
+            try {
+                showStatus(elements.statusContainer, 'Loading files from folder...', 'loading');
+                
+                // Resolve the sharing link to get drive/folder info
+                const folderItem = await resolveSharingLink(folderUrl);
+                
+                if (!folderItem) {
+                    throw new Error('Could not access the folder. Make sure the link is correct and you have access.');
+                }
+                
+                // Store drive info for later use
+                driveInfo = {
+                    driveId: folderItem.parentReference.driveId,
+                    folderId: folderItem.id,
+                    folderName: folderItem.name
+                };
+                
+                // List children (files) in the folder
+                const endpoint = `/drives/${driveInfo.driveId}/items/${driveInfo.folderId}/children`;
+                const response = await graphRequest(endpoint);
+                
+                // Filter for PDF files and extract names
+                const pdfFiles = response.value
+                    .filter(item => item.name.toLowerCase().endsWith('.pdf'))
+                    .map(item => ({
+                        id: item.id,
+                        name: item.name,
+                        displayName: item.name.replace(/\.pdf$/i, ''),
+                        downloadUrl: item['@microsoft.graph.downloadUrl']
+                    }));
+                
+                if (pdfFiles.length === 0) {
+                    showStatus(elements.statusContainer, 'No PDF files found in the folder', 'error');
+                    return;
+                }
+                
+                // Display participants
+                displayParticipants(pdfFiles);
+                showStatus(elements.statusContainer, `Found ${pdfFiles.length} participant(s)`, 'success');
+                
+            } catch (error) {
+                console.error('Error loading files:', error);
+                showStatus(elements.statusContainer, 'Error: ' + error.message, 'error');
+            }
+        }
+        
+        function displayParticipants(files) {
+            elements.participantGrid.innerHTML = '';
+            
+            files.forEach(file => {
+                const card = document.createElement('div');
+                card.className = 'participant-card';
+                card.innerHTML = `
+                    <div class="participant-name">${file.displayName}</div>
+                    <div class="participant-status">Tap to sign</div>
+                `;
+                card.addEventListener('click', () => openSignatureModal(file));
+                elements.participantGrid.appendChild(card);
+            });
+            
+            elements.participantsSection.classList.remove('hidden');
+        }
+        
+        // ============================================
+        // SIGNATURE MODAL
+        // ============================================
+        async function openSignatureModal(file) {
+            currentPdfFile = file;
+            elements.modalParticipantName.textContent = file.displayName;
+            elements.signatureModal.classList.add('active');
+            
+            // Initialize signature pad
+            initSignaturePad();
+            
+            // Load and display the PDF
+            await loadPdfPreview(file);
+        }
+        
+        function closeSignatureModal() {
+            elements.signatureModal.classList.remove('active');
+            currentPdfFile = null;
+            currentPdfBytes = null;
+            clearStatus(elements.modalStatusContainer);
+            if (signaturePad) {
+                signaturePad.clear();
+            }
+        }
+        
+        function initSignaturePad() {
+            const canvas = elements.signaturePadCanvas;
+            const container = canvas.parentElement;
+            
+            // Set canvas size
+            const ratio = Math.max(window.devicePixelRatio || 1, 1);
+            canvas.width = container.offsetWidth * ratio;
+            canvas.height = 200 * ratio;
+            canvas.style.width = container.offsetWidth + 'px';
+            canvas.style.height = '200px';
+            
+            const ctx = canvas.getContext('2d');
+            ctx.scale(ratio, ratio);
+            
+            signaturePad = new SignaturePad(canvas, {
+                backgroundColor: 'rgb(255, 255, 255)',
+                penColor: 'rgb(0, 0, 0)',
+                minWidth: 1,
+                maxWidth: 3,
+            });
+        }
+        
+        async function loadPdfPreview(file) {
+            try {
+                showStatus(elements.modalStatusContainer, 'Loading document...', 'loading');
+                
+                // Download the PDF
+                const endpoint = `/drives/${driveInfo.driveId}/items/${file.id}/content`;
+                currentPdfBytes = await graphRequest(endpoint, { responseType: 'arraybuffer' });
+                
+                // Render first page preview
+                const loadingTask = pdfjsLib.getDocument({ data: currentPdfBytes });
+                const pdf = await loadingTask.promise;
+                const page = await pdf.getPage(1);
+                
+                const canvas = elements.pdfCanvas;
+                const ctx = canvas.getContext('2d');
+                
+                // Scale to fit container
+                const containerWidth = canvas.parentElement.offsetWidth - 32;
+                const viewport = page.getViewport({ scale: 1 });
+                const scale = Math.min(containerWidth / viewport.width, 1.5);
+                const scaledViewport = page.getViewport({ scale });
+                
+                canvas.width = scaledViewport.width;
+                canvas.height = scaledViewport.height;
+                
+                await page.render({
+                    canvasContext: ctx,
+                    viewport: scaledViewport
+                }).promise;
+                
+                clearStatus(elements.modalStatusContainer);
+                
+            } catch (error) {
+                console.error('Error loading PDF:', error);
+                showStatus(elements.modalStatusContainer, 'Error loading document: ' + error.message, 'error');
+            }
+        }
+        
+        async function saveSignature() {
+            if (!signaturePad || signaturePad.isEmpty()) {
+                showStatus(elements.modalStatusContainer, 'Please draw your signature first', 'error');
+                return;
+            }
+            
+            if (!currentPdfBytes || !currentPdfFile) {
+                showStatus(elements.modalStatusContainer, 'No document loaded', 'error');
+                return;
+            }
+            
+            try {
+                showStatus(elements.modalStatusContainer, 'Saving signature...', 'loading');
+                
+                // Get signature as PNG
+                const signatureDataUrl = signaturePad.toDataURL('image/png');
+                const signatureBytes = await fetch(signatureDataUrl).then(res => res.arrayBuffer());
+                
+                // Load the PDF with pdf-lib
+                const pdfDoc = await PDFLib.PDFDocument.load(currentPdfBytes);
+                const pages = pdfDoc.getPages();
+                const firstPage = pages[0];
+                
+                // Embed signature image
+                const signatureImage = await pdfDoc.embedPng(signatureBytes);
+                
+                // Get page dimensions
+                const { width, height } = firstPage.getSize();
+                
+                // Position signature in the "Candidate:" box
+                // Based on the PDF layout, the Candidate box is on the right side, near the bottom
+                // Approximate position (will need fine-tuning based on actual PDF)
+                const signatureWidth = 100;
+                const signatureHeight = (signatureImage.height / signatureImage.width) * signatureWidth;
+                
+                // Position: Right side of page, in the Candidate signature area
+                // The Candidate box appears to be roughly at x=400, y=120 from bottom
+                const signatureX = width - 180; // Right side, with some margin
+                const signatureY = 105; // From bottom of page
+                
+                firstPage.drawImage(signatureImage, {
+                    x: signatureX,
+                    y: signatureY,
+                    width: signatureWidth,
+                    height: signatureHeight,
+                });
+                
+                // Save the modified PDF
+                const modifiedPdfBytes = await pdfDoc.save();
+                
+                // Upload back to SharePoint/OneDrive
+                const uploadEndpoint = `/drives/${driveInfo.driveId}/items/${currentPdfFile.id}/content`;
+                
+                await fetch(`https://graph.microsoft.com/v1.0${uploadEndpoint}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/pdf'
+                    },
+                    body: modifiedPdfBytes
+                });
+                
+                showStatus(elements.modalStatusContainer, 'Signature saved successfully! ✓', 'success');
+                
+                // Update the preview
+                currentPdfBytes = modifiedPdfBytes;
+                await loadPdfPreview(currentPdfFile);
+                
+                // Clear signature pad
+                signaturePad.clear();
+                
+            } catch (error) {
+                console.error('Error saving signature:', error);
+                showStatus(elements.modalStatusContainer, 'Error saving signature: ' + error.message, 'error');
+            }
+        }
+        
+        // ============================================
+        // EVENT LISTENERS
+        // ============================================
+        elements.btnSignin.addEventListener('click', signIn);
+        elements.btnSignout.addEventListener('click', signOut);
+        elements.btnLoadFiles.addEventListener('click', loadFilesFromFolder);
+        elements.modalClose.addEventListener('click', closeSignatureModal);
+        elements.btnClearSignature.addEventListener('click', () => signaturePad?.clear());
+        elements.btnSaveSignature.addEventListener('click', saveSignature);
+        
+        // Close modal on overlay click
+        elements.signatureModal.addEventListener('click', (e) => {
+            if (e.target === elements.signatureModal) {
+                closeSignatureModal();
+            }
+        });
+        
+        // Handle window resize for signature pad
+        window.addEventListener('resize', () => {
+            if (elements.signatureModal.classList.contains('active')) {
+                initSignaturePad();
+            }
+        });
+        
+        // ============================================
+        // INITIALIZE
+        // ============================================
+        document.addEventListener('DOMContentLoaded', initializeMsal);
+    </script>
+</body>
+</html>
