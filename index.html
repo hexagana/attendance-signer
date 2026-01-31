@@ -959,10 +959,14 @@
                 
                 // Download the PDF
                 const endpoint = `/drives/${driveInfo.driveId}/items/${file.id}/content`;
-                currentPdfBytes = await graphRequest(endpoint, { responseType: 'arraybuffer' });
+                const downloadedBytes = await graphRequest(endpoint, { responseType: 'arraybuffer' });
                 
-                // Render first page preview
-                const loadingTask = pdfjsLib.getDocument({ data: currentPdfBytes });
+                // Store a copy of the bytes (to prevent detached ArrayBuffer issues)
+                currentPdfBytes = new Uint8Array(downloadedBytes).slice();
+                
+                // Render first page preview using a copy of the bytes
+                const pdfBytesForPreview = currentPdfBytes.slice();
+                const loadingTask = pdfjsLib.getDocument({ data: pdfBytesForPreview });
                 const pdf = await loadingTask.promise;
                 const page = await pdf.getPage(1);
                 
@@ -1007,10 +1011,13 @@
                 
                 // Get signature as PNG
                 const signatureDataUrl = signaturePad.toDataURL('image/png');
-                const signatureBytes = await fetch(signatureDataUrl).then(res => res.arrayBuffer());
+                const signatureResponse = await fetch(signatureDataUrl);
+                const signatureBlob = await signatureResponse.blob();
+                const signatureBytes = await signatureBlob.arrayBuffer();
                 
-                // Load the PDF with pdf-lib
-                const pdfDoc = await PDFLib.PDFDocument.load(currentPdfBytes);
+                // Load the PDF with pdf-lib using a copy of the bytes
+                const pdfBytesForEdit = currentPdfBytes.slice();
+                const pdfDoc = await PDFLib.PDFDocument.load(pdfBytesForEdit);
                 const pages = pdfDoc.getPages();
                 const firstPage = pages[0];
                 
@@ -1022,14 +1029,12 @@
                 
                 // Position signature in the "Candidate:" box
                 // Based on the PDF layout, the Candidate box is on the right side, near the bottom
-                // Approximate position (will need fine-tuning based on actual PDF)
                 const signatureWidth = 100;
                 const signatureHeight = (signatureImage.height / signatureImage.width) * signatureWidth;
                 
                 // Position: Right side of page, in the Candidate signature area
-                // The Candidate box appears to be roughly at x=400, y=120 from bottom
-                const signatureX = width - 180; // Right side, with some margin
-                const signatureY = 105; // From bottom of page
+                const signatureX = width - 180;
+                const signatureY = 105;
                 
                 firstPage.drawImage(signatureImage, {
                     x: signatureX,
@@ -1044,20 +1049,45 @@
                 // Upload back to SharePoint/OneDrive
                 const uploadEndpoint = `/drives/${driveInfo.driveId}/items/${currentPdfFile.id}/content`;
                 
-                await fetch(`https://graph.microsoft.com/v1.0${uploadEndpoint}`, {
+                const uploadResponse = await fetch(`https://graph.microsoft.com/v1.0${uploadEndpoint}`, {
                     method: 'PUT',
                     headers: {
                         'Authorization': `Bearer ${accessToken}`,
                         'Content-Type': 'application/pdf'
                     },
-                    body: modifiedPdfBytes
+                    body: new Uint8Array(modifiedPdfBytes)
                 });
+                
+                if (!uploadResponse.ok) {
+                    throw new Error('Failed to upload signed document');
+                }
                 
                 showStatus(elements.modalStatusContainer, 'Signature saved successfully! ✓', 'success');
                 
-                // Update the preview
-                currentPdfBytes = modifiedPdfBytes;
-                await loadPdfPreview(currentPdfFile);
+                // Update the stored bytes with the modified version
+                currentPdfBytes = new Uint8Array(modifiedPdfBytes).slice();
+                
+                // Refresh the preview
+                const pdfBytesForPreview = currentPdfBytes.slice();
+                const loadingTask = pdfjsLib.getDocument({ data: pdfBytesForPreview });
+                const pdf = await loadingTask.promise;
+                const page = await pdf.getPage(1);
+                
+                const canvas = elements.pdfCanvas;
+                const ctx = canvas.getContext('2d');
+                
+                const containerWidth = canvas.parentElement.offsetWidth - 32;
+                const viewport = page.getViewport({ scale: 1 });
+                const scale = Math.min(containerWidth / viewport.width, 1.5);
+                const scaledViewport = page.getViewport({ scale });
+                
+                canvas.width = scaledViewport.width;
+                canvas.height = scaledViewport.height;
+                
+                await page.render({
+                    canvasContext: ctx,
+                    viewport: scaledViewport
+                }).promise;
                 
                 // Clear signature pad
                 signaturePad.clear();
