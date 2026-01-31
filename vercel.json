@@ -1,0 +1,14 @@
+{
+  "version": 2,
+  "functions": {
+    "api/notion.js": {
+      "runtime": "@vercel/node@3"
+    }
+  },
+  "routes": [
+    {
+      "src": "/api/notion",
+      "dest": "/api/notion.js"
+    }
+  ]
+}
