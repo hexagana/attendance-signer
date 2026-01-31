@@ -1033,8 +1033,9 @@
                 const signatureHeight = (signatureImage.height / signatureImage.width) * signatureWidth;
                 
                 // Position: Right side of page, in the Candidate signature area
+                // Adjusted Y position higher (increased from 105 to 155)
                 const signatureX = width - 180;
-                const signatureY = 105;
+                const signatureY = 155;
                 
                 firstPage.drawImage(signatureImage, {
                     x: signatureX,
