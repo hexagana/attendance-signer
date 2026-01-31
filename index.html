@@ -1028,18 +1028,17 @@
                 const { width, height } = firstPage.getSize();
                 
                 // Position signature in the "Candidate:" box
-                // User provided X:1351 Y:777 from ShareX (pixels from top-left)
+                // User provided X:1554 Y:1070 from ShareX (pixels from top-left)
                 // PDF coordinates are in points from bottom-left
                 // A4 page: 595.44 x 841.68 points
-                // Assuming ShareX captured at ~2.85x scale (common for screen captures)
-                // X: 1351 / 2.85 ≈ 474 points from left
-                // Y: Need to flip - if page is ~2400px tall: (2400-777) / 2.85 ≈ 570 from bottom
-                // Adjusting slightly for signature box positioning
+                // Using ~2.85x scale ratio
+                // X: 1554 / 2.85 ≈ 545 points from left
+                // Y: (imageHeight - 1070) / 2.85. Assuming ~2400px tall: (2400-1070) / 2.85 ≈ 467 from bottom
                 const signatureWidth = 100;
                 const signatureHeight = (signatureImage.height / signatureImage.width) * signatureWidth;
                 
-                const signatureX = 474;
-                const signatureY = 570;
+                const signatureX = 545;
+                const signatureY = 467;
                 
                 firstPage.drawImage(signatureImage, {
                     x: signatureX,
